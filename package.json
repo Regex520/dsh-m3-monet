@@ -3,6 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "description": "Monet wallpaper theming for DeepSeek Harness: Material Design 3 tokens, frosted glass sidebar, wallpaper background.",
+  "license": "MIT",
+  "author": "Regex520",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Regex520/dsh-m3-monet.git"
+  },
+  "homepage": "https://github.com/Regex520/dsh-m3-monet#readme",
+  "bugs": {
+    "url": "https://github.com/Regex520/dsh-m3-monet/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "material-design-3",
+    "monet",
+    "dynamic-color",
+    "theming",
+    "wallpaper"
+  ],
   "type": "module",
   "icon": "./icon.svg",
   "exports": {

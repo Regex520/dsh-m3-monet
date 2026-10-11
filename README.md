@@ -103,3 +103,17 @@ node scripts/smoke-client.mjs  # 浏览器端冒烟：模块装载、槽位注�
 - 设置页背景透视由冒烟测试覆盖：断言 `--dsw-alias-bg-mask-1` 为 24% 半透明 scrim（非不透明）、`bg-skeleton` 半透明、`border-inverted` 亮色为 `transparent`；壁纸开启时 `.wCInkW_mask` 与 `.wCInkW_panel` 均带 `backdrop-filter`，面板背景为 60%（主体毛玻璃不透明度）的 `color-mix`；无壁纸时不下发 `.wCInkW_panel` 规则。
 - 壁纸自动取色由冒烟测试场景 5/6 覆盖：场景 5 用「旧版前缀标记 + 已存紫色种子」模拟升级前状态，断言重新提取出的标记与旧标记不同、种子来自新壁纸（纯绿 64×64，`greenFromArgb > blueFromArgb`）、最终 `--dsw-alias-brand-primary` 亮色不再是 `#6750a4`（实测 `#006e21`，种子 `#48a850`）且主题被重复应用；场景 6 断言开启壁纸后色源自动从 `preset` 切到 `wallpaper`。
 - 「换壁纸后颜色不刷新」的竞态由场景 5 守住：测试等待 `settle(260ms)` 越过 120ms 防抖窗口后才断言，要求最终生效的主题既不是旧种子 `#6750a4`、也不等于旧种子推出的 `brand-primary`。把修复临时还原（`applySoon` 用旧快照 + `applyFresh` 不取消防抖）后该断言确实失败（实测回落到 `#6750a4`），证明断言不是空转。
+
+## 安装
+
+```bash
+git clone https://github.com/Regex520/dsh-m3-monet.git
+```
+
+克隆后把该目录作为本地 bundle 装入 Harness profile（以 `link:` 方式登记，因此改工作区文件即改已装包内容），
+**重载应用**后生效：设置 → 插件 → 莫奈美化 → 配置。
+
+## 许可证
+
+- 本插件：MIT（见 [LICENSE](./LICENSE)）。
+- 离线打包的引擎代码来自 [`@material/material-color-utilities`](https://github.com/material-foundation/material-color-utilities)（Apache-2.0），出处与许可全文见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
