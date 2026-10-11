@@ -1,0 +1,3 @@
+- insert:
+    - id: dsh-m3-monet
+      name: '@local/dsh-m3-monet'

@@ -1,0 +1,29 @@
+{
+  "name": "@local/dsh-m3-monet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monet wallpaper theming for DeepSeek Harness: Material Design 3 tokens, frosted glass sidebar, wallpaper background.",
+  "type": "module",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "locale/*.json",
+    "icon.svg",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  }
+}

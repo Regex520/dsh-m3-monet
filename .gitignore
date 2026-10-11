@@ -1,0 +1,9 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+
+# scratch files produced while debugging (screenshots, command output dumps)
+scripts/o*.txt
+scripts/crop-*.png
+client.js.good
