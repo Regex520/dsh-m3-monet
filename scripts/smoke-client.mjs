@@ -151,8 +151,29 @@ const s2fill = s2.tokens['--dsw-specific-sidebar-fill'].light;
 assert(s2bg.includes('color-mix') && s2bg.includes('60%'), 'content veil must use the CONTENT glass opacity, got: ' + s2bg);
 assert(s2fill.includes('color-mix') && s2fill.includes('80%'), 'sidebar veil must use the SIDEBAR glass opacity, got: ' + s2fill);
 assert(s2.tokens['--dsw-alias-bg-layer-1'].light.includes('color-mix'), 'panels stay slightly translucent');
-assert(s2.css.includes('.BynINW_sidebarCol{backdrop-filter:blur(18px) saturate(160%)'), 'sidebar blur must be independent');
-assert(s2.css.includes('.BynINW_centerCol{backdrop-filter:blur(8px) saturate(120%)'), 'content blur must be independent');
+assert(
+  s2.css.includes(
+    '.BynINW_sidebarCol::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;backdrop-filter:blur(18px) saturate(160%)'
+  ),
+  'sidebar blur must be independent, and painted on a layer behind the column content'
+);
+assert(
+  s2.css.includes(
+    '.BynINW_centerCol::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;backdrop-filter:blur(8px) saturate(120%)'
+  ),
+  'content blur must be independent, and painted on a layer behind the column content'
+);
+// Regression: the blur must not land on the columns themselves. `backdrop-filter` turns an
+// element into the containing block of its `position:fixed` descendants, which used to push
+// the fixed sidebar toggle button (._2H3hWW_toggle, left:12px) down by the title bar height.
+assert(
+  !/\.BynINW_sidebarCol\{[^}]*backdrop-filter/.test(s2.css),
+  'the sidebar column must not carry backdrop-filter itself'
+);
+assert(
+  !/\.BynINW_centerCol\{[^}]*backdrop-filter/.test(s2.css),
+  'the content column must not carry backdrop-filter itself'
+);
 assert(s2.css.includes('https://example.com/bg.jpg'), 'wallpaper must be painted on the frame');
 assert(s2.css.includes('.BynINW_sidebarCol ._2H3hWW_root{background:transparent;}'), 'inner sidebar root must be transparent');
 // the settings dialog becomes see-through over the wallpaper, using the content glass values

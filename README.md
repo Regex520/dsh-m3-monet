@@ -35,8 +35,18 @@ M3 roles onto the Harness design tokens per color scheme.
 > `--dsw-alias-bg-mask-1/2/3`、`bg-mask-photo/drop`、`bg-skeleton`、`border-inverted(2)` 在 stock 主题里都是**半透明**叠加层；
 > 早期版本把它们错误地映射成了不透明 `scrim`，会让设置页遮罩变成纯黑（壁纸完全看不见），现已按语义修正。
 
-毛玻璃 `backdrop-filter` 按分组分别作用于 `.BynINW_sidebarCol`（侧边栏）与 `.BynINW_centerCol`（主体），
-它们直接坐在 frame 背景上，因此模糊的正是壁纸本身；标题栏条不参与模糊。
+毛玻璃 `backdrop-filter` 按分组分别作用于侧边栏（`.BynINW_sidebarCol`）与主体（`.BynINW_centerCol`），
+二者直接坐在 frame 背景上，因此模糊的正是壁纸本身；标题栏条不参与模糊。
+
+> 该模糊**不能直接写在列元素上**：`backdrop-filter`（与 `filter`、`transform` 一样）会让元素成为其
+> `position:fixed` 后代的包含块，而侧边栏的折叠按钮 `._2H3hWW_toggle` 恰好是
+> `position:fixed; left:12px; top:calc((var(--dsh-windows-titlebar-height) - 28px) / 2)`——靠它落在
+> Windows 标题栏那一行。模糊一旦写在列上，按钮就以「侧边栏列」为基准定位，整体下移一个标题栏高度，
+> 压到 `deepseek HARNESS` 品牌行上（因为列本身已经被 frame 的 `padding-top` 推低了一个标题栏高度）。
+> 因此改为在列内绘制 `::before` 毛玻璃层：
+> `position:relative;z-index:0` + `::before{inset:0;z-index:-1;pointer-events:none;backdrop-filter:…}`。
+> 该层位于列内容之下（`z-index:-1`，不会把侧边栏自己的文字糊掉），且自身没有任何后代，
+> 不会再改变任何元素的定位基准。主体列同理。
 
 侧边栏底部（`_2H3hWW_footArea`，账号行上方）原有软性阴影边界，现替换为
 `border-top: 1px solid var(--dsw-alias-border-l2)` 的主题色横线。
@@ -103,6 +113,9 @@ node scripts/smoke-client.mjs  # 浏览器端冒烟：模块装载、槽位注�
 - 设置页背景透视由冒烟测试覆盖：断言 `--dsw-alias-bg-mask-1` 为 24% 半透明 scrim（非不透明）、`bg-skeleton` 半透明、`border-inverted` 亮色为 `transparent`；壁纸开启时 `.wCInkW_mask` 与 `.wCInkW_panel` 均带 `backdrop-filter`，面板背景为 60%（主体毛玻璃不透明度）的 `color-mix`；无壁纸时不下发 `.wCInkW_panel` 规则。
 - 壁纸自动取色由冒烟测试场景 5/6 覆盖：场景 5 用「旧版前缀标记 + 已存紫色种子」模拟升级前状态，断言重新提取出的标记与旧标记不同、种子来自新壁纸（纯绿 64×64，`greenFromArgb > blueFromArgb`）、最终 `--dsw-alias-brand-primary` 亮色不再是 `#6750a4`（实测 `#006e21`，种子 `#48a850`）且主题被重复应用；场景 6 断言开启壁纸后色源自动从 `preset` 切到 `wallpaper`。
 - 「换壁纸后颜色不刷新」的竞态由场景 5 守住：测试等待 `settle(260ms)` 越过 120ms 防抖窗口后才断言，要求最终生效的主题既不是旧种子 `#6750a4`、也不等于旧种子推出的 `brand-primary`。把修复临时还原（`applySoon` 用旧快照 + `applyFresh` 不取消防抖）后该断言确实失败（实测回落到 `#6750a4`），证明断言不是空转。
+- 「侧边栏折叠按钮下移到品牌行」由冒烟测试守住：断言毛玻璃只出现在 `.BynINW_sidebarCol::before` /
+  `.BynINW_centerCol::before` 上，并列元素本身**不带** `backdrop-filter`（`/\.BynINW_sidebarCol\{[^}]*backdrop-filter/`
+  与 `/\.BynINW_centerCol\{[^}]*backdrop-filter/` 都必须不命中）——一旦把模糊写回列元素，这两条断言立即失败。
 
 ## 安装
 

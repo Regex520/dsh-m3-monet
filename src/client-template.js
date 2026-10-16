@@ -305,14 +305,29 @@ window.__ModuleLoader__.load({
         );
       }
       // Sidebar and content glass are configured separately.
+      //
+      // The blur must NOT sit on the column itself. `backdrop-filter` (like `filter` and
+      // `transform`) makes an element the containing block for its `position:fixed`
+      // descendants, and `._2H3hWW_toggle` — the sidebar toggle button — is exactly that:
+      // the sidebar renders it as
+      //   position:fixed; left:12px; top:calc((var(--dsh-windows-titlebar-height) - 28px)/2)
+      // so that it lands in the Windows title bar row. Blurring the column turned the column
+      // into that containing block, so the button was offset downwards by the title bar
+      // height and landed on the brand row. Paint the frost on a ::before layer instead:
+      // it is behind the column's content (z-index:-1, so it never blurs the sidebar's own
+      // text) and it has no descendants, so nothing is re-anchored.
       if (gs.enabled) {
+        const sidebarFrost = `backdrop-filter:blur(${gs.blur}px) saturate(${gs.saturation}%);-webkit-backdrop-filter:blur(${gs.blur}px) saturate(${gs.saturation}%);`;
         parts.push(
-          `html.m3-glass-sidebar .BynINW_sidebarCol{backdrop-filter:blur(${gs.blur}px) saturate(${gs.saturation}%);-webkit-backdrop-filter:blur(${gs.blur}px) saturate(${gs.saturation}%);}`
+          'html.m3-glass-sidebar .BynINW_sidebarCol{position:relative;z-index:0;}',
+          `html.m3-glass-sidebar .BynINW_sidebarCol::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;${sidebarFrost}}`
         );
       }
       if (gc.enabled) {
+        const contentFrost = `backdrop-filter:blur(${gc.blur}px) saturate(${gc.saturation}%);-webkit-backdrop-filter:blur(${gc.blur}px) saturate(${gc.saturation}%);`;
         parts.push(
-          `html.m3-glass-content .BynINW_centerCol{backdrop-filter:blur(${gc.blur}px) saturate(${gc.saturation}%);-webkit-backdrop-filter:blur(${gc.blur}px) saturate(${gc.saturation}%);}`
+          'html.m3-glass-content .BynINW_centerCol{position:relative;z-index:0;}',
+          `html.m3-glass-content .BynINW_centerCol::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;${contentFrost}}`
         );
       }
       // Replace the soft edge under the sidebar list with a crisp theme-colored line.
