@@ -9,6 +9,7 @@ M3 roles onto the Harness design tokens per color scheme.
 - 换图即自动重取色：壁纸以内容哈希标记，选择新壁纸后立即重新提取种子并应用（无需手动切色源）
 - MD3 Token 映射：`--dsw-alias-*` 全套别名令牌（100+ 项，亮暗各自取值）由 `theme.overrideTokens` 注入
 - 毛玻璃：**侧边栏与主体分别配置**（各自开关 / 模糊 / 饱和度 / 不透明度），`backdrop-filter` 直接作用于壁纸
+- Material You 视觉与动效：MD3 运动/形状令牌 + `m3ui` 控件样式（开关/滑块/芯片/卡片）+ 壳层配色交叉淡入 + 设置页入场动画，可一键关闭并尊重系统「减少动态效果」
 - 壁纸背景：整窗口背景（带亮/暗各自的暗化层），并把顶层表面改为半透明使其透出
 - 顶部标题栏固定为主题纯色，不参与壁纸与毛玻璃
 - 侧边栏底部原「阴影式」软边界替换为主题色 1px 横线
@@ -50,6 +51,23 @@ M3 roles onto the Harness design tokens per color scheme.
 
 侧边栏底部（`_2H3hWW_footArea`，账号行上方）原有软性阴影边界，现替换为
 `border-top: 1px solid var(--dsw-alias-border-l2)` 的主题色横线。
+
+## Material 3 视觉与动效
+
+设置页与主题表面按 Google Material 3（Material You）规范重构：
+
+- **静态样式表**：MD3 运动令牌（`--m3-ease-standard/emphasized`、`--m3-dur-short…medium4`）、形状令牌
+  （`--m3-radius-xs…xl`）与全套 `m3ui-*` 控件样式，经 `data-m3-monet-base` 样式表**注入一次、永不重写**——
+  重写样式表会重启 CSS 动画；随设置变化的规则仍在独立的动态样式表（`data-m3-monet`）里。
+- **控件**：开关（MD3 轨道 40×22、拇指 14→18、悬停状态层光晕）、滑块（4px 轨道 + 主色拇指 + 按压光晕）、
+  分段选择与按钮（药丸形芯片，选中用 secondary-container / primary 填充）、色板与预设圆点、
+  卡片（MD3 elevation level 1——阴影色取自当前方案的 `shadow` 角色而非硬编码灰色）。
+  颜色全部走 `--m3-*` 令牌并回退到 `--dsw-alias-*`，插件禁用时控件自动退回主题令牌样式。
+- **壳层交叉淡入**：壁纸/毛玻璃/调色变化时，`frame`、侧边栏、主体列与内部侧边栏根的背景/边框/文字色以
+  250ms `ease-standard` 过渡（列 `::before` 毛玻璃层同步过渡）。只过渡颜色属性，**不**对宿主元素使用
+  `transform`/`will-change`（避免再次触碰 fixed 定位包含块问题）。
+- **入场动画**：设置页行级 4px 上滑淡入；壁纸预览图更换时 200ms 淡入（key 重挂载触发）。
+- **运动开关**：设置页「过渡动画」可整体关闭（立即生效）；系统 `prefers-reduced-motion: reduce` 时自动全部禁用。
 
 ## 壁纸取色
 
@@ -116,6 +134,10 @@ node scripts/smoke-client.mjs  # 浏览器端冒烟：模块装载、槽位注�
 - 「侧边栏折叠按钮下移到品牌行」由冒烟测试守住：断言毛玻璃只出现在 `.BynINW_sidebarCol::before` /
   `.BynINW_centerCol::before` 上，并列元素本身**不带** `backdrop-filter`（`/\.BynINW_sidebarCol\{[^}]*backdrop-filter/`
   与 `/\.BynINW_centerCol\{[^}]*backdrop-filter/` 都必须不命中）——一旦把模糊写回列元素，这两条断言立即失败。
+- Material 3 视觉与动效由冒烟测试守住：断言恰好两张样式表（静态 base + 动态）、base 含 MD3 运动令牌与
+  `prefers-reduced-motion`、壳层过渡被 `html.m3-monet-on:not(.m3-motion-off)` 门控、base 不含 `backdrop-filter`；
+  遍历设置页渲染树（含函数组件调用与 children 拍平）断言控件使用 `m3ui-switch/chip/card/slider/dot` 类、
+  行带 `m3ui-row-in` 入场类；`motion:false` 时断言 `m3-motion-off` 根标记出现（默认不出现）。
 
 ## 安装
 

@@ -70,7 +70,15 @@ function runScenario(stored) {
         return e;
       },
       head: { appendChild() {} },
-      documentElement: { style: { setProperty() {} }, classList: { add() {}, remove() {} } },
+      documentElement: {
+        style: { setProperty() {} },
+        classList: {
+          _flags: new Set(),
+          add(c) { this._flags.add(c); },
+          remove(c) { this._flags.delete(c); },
+          contains(c) { return this._flags.has(c); },
+        },
+      },
     },
     // loads synchronously so wallpaper extraction can be asserted without a real browser
     Image: function Image() {
@@ -100,7 +108,14 @@ function runScenario(stored) {
   const cleanup = api.apply(fakeCtx);
   return {
     mod, api, registrations, writes, tokens: fakeCtx.lastTokens, source: fakeCtx.lastSource,
-    renders: fakeCtx.renders, css: styleEls[0] && styleEls[0].textContent, cleanup, ctx: fakeCtx,
+    renders: fakeCtx.renders,
+    // styleEls[0] is the static base sheet (tokens + m3ui controls), styleEls[1] the
+    // per-settings dynamic sheet; `css` is their union for backwards-compatible asserts.
+    css: styleEls.map((e) => e.textContent).join('\n'),
+    baseCss: styleEls[0] ? styleEls[0].textContent : '',
+    styleCount: styleEls.length,
+    rootFlags: sandbox.document.documentElement.classList,
+    cleanup, ctx: fakeCtx,
     engine: sandbox.window.__M3_ENGINE__,
   };
 }
@@ -135,6 +150,53 @@ assert(s1.tokens['--dsw-alias-bg-skeleton'].light.includes('color-mix'), 'bg-ske
 assert(s1.tokens['--dsw-alias-border-inverted'].light === 'transparent', 'border-inverted is transparent in the light theme');
 // no wallpaper -> the settings dialog keeps the stock opaque surface
 assert(!s1.css.includes('.wCInkW_panel'), 'the settings panel must stay stock without a wallpaper');
+
+// --------- scenario 1b: the static MD3 base sheet (motion tokens, m3ui controls, gating)
+assert(s1.styleCount === 2, 'expected exactly two style sheets (base + dynamic), got: ' + s1.styleCount);
+assert(
+  s1.baseCss.includes('--m3-ease-standard') && s1.baseCss.includes('--m3-radius-l'),
+  'MD3 motion/shape tokens must live in the static base sheet'
+);
+assert(s1.baseCss.includes('prefers-reduced-motion'), 'the base sheet must honour prefers-reduced-motion');
+assert(
+  s1.baseCss.includes('html.m3-monet-on:not(.m3-motion-off) .BynINW_frame'),
+  'shell colour cross-fades must be gated on enabled + motion-on'
+);
+assert(
+  s1.baseCss.includes('html.m3-motion-off .m3ui-chip'),
+  'motion-off must neutralise m3ui transitions'
+);
+assert(!s1.baseCss.includes('backdrop-filter'), 'the static base sheet must stay free of glass');
+assert(!s1.rootFlags._flags.has('m3-motion-off'), 'motion must default to on');
+const sMotionOff = runScenario({ enabled: true, motion: false });
+assert(sMotionOff.rootFlags._flags.has('m3-motion-off'), 'motion:false must raise the m3-motion-off flag');
+sMotionOff.cleanup();
+
+// the rendered settings page must use the m3ui control classes
+// (elements from the React stub are { t, props, children } — children live at the top level)
+const pageEl = sectionOf(s1).comp({});
+const rendered = pageEl.t(pageEl.props);
+const viewEl = [].concat(rendered.children).find((c) => c && c.props && c.props.s !== undefined);
+assert(viewEl && typeof viewEl.t === 'function', 'SettingsPage must render SettingsView');
+const classNames = [];
+(function walkClassNames(node) {
+  if (!node || typeof node !== 'object') return;
+  if (node.props && node.props.className) classNames.push(String(node.props.className));
+  // function components (Toggle/Card/Row/...) carry classes only once invoked; the stub
+  // keeps children at the element top level, so merge them back like React would
+  if (typeof node.t === 'function') {
+    walkClassNames(node.t(Object.assign({}, node.props, { children: node.children })));
+    return;
+  }
+  if (node.children) [].concat(node.children).flat(Infinity).forEach(walkClassNames);
+})(viewEl.t(viewEl.props));
+const hasClass = (needle) => classNames.some((c) => c.includes(needle));
+assert(hasClass('m3ui-switch'), 'toggles must use the m3ui switch');
+assert(hasClass('m3ui-chip'), 'segmented options must be m3ui chips');
+assert(hasClass('m3ui-card'), 'cards must use the m3ui card');
+assert(hasClass('m3ui-slider'), 'sliders must use the m3ui slider');
+assert(hasClass('m3ui-row-in'), 'rows must animate in');
+assert(hasClass('m3ui-dot'), 'palette presets must be m3ui dots');
 
 // --------------------------------- scenario 2: wallpaper on, separate sidebar/content glass
 const s2 = runScenario({

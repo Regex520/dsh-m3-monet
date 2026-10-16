@@ -75,6 +75,8 @@ window.__ModuleLoader__.load({
       seedFromPreset: '预设色板',
       chromeHint: '该页样式全部使用 Harness 主题 Token，自动跟随亮暗切换。',
       presetGallery: '内置渐变壁纸（随当前调色板联动）',
+      motion: '过渡动画',
+      motionDesc: '主题表面与设置页的 Material You 过渡动效（关闭后立即生效）',
     };
     const EN = {
       title: 'Monet Theme',
@@ -130,6 +132,8 @@ window.__ModuleLoader__.load({
       seedFromPreset: 'Preset palette',
       chromeHint: 'This page is styled with Harness theme tokens only; it follows light/dark automatically.',
       presetGallery: 'Built-in gradient wallpapers (tuned to the current palette)',
+      motion: 'Motion',
+      motionDesc: 'Material You transitions for themed surfaces and this page (off = instant)',
     };
     const t = (key) => {
       const lang = (typeof navigator !== 'undefined' && navigator.language || 'zh-CN');
@@ -156,6 +160,8 @@ window.__ModuleLoader__.load({
       dim: 30,
       // how much of the frame wallpaper shows through the top-level surfaces
       surfaceOpacity: 78,
+      // MD3 motion: animated colour cross-fades and control state transitions
+      motion: true,
       glass: {
         // sidebar and main content are configured independently
         sidebar: { enabled: false, blur: 16, saturation: 150, opacity: 88 },
@@ -228,6 +234,7 @@ window.__ModuleLoader__.load({
 
     // -------------------------------------------------------------- css utils
     let styleEl = null;
+    let baseStyleEl = null;
     let disposeOverrides = null;
     let applyTimer = null;
 
@@ -275,7 +282,7 @@ window.__ModuleLoader__.load({
       const gradD = `linear-gradient(rgba(8,10,14,${dimD.toFixed(3)}), rgba(8,10,14,${dimD.toFixed(3)}))`;
       const parts = [];
       const roles = M.buildMaterialRoles(buildCoreFromSettings(s), s.palette.tone);
-      parts.push('html.m3-monet-on{--m3-font:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}');
+      // --m3-font and all MD3 motion/shape tokens live in the static base stylesheet.
       // The window chrome stays a solid theme surface: no wallpaper, no blur.
       parts.push(
         `html.m3-monet-on body:not([data-ds-dark-theme]) [data-windows-titlebar] .BynINW_frame:before{background:${roles.light.surfaceContainer};background-image:none;backdrop-filter:none;-webkit-backdrop-filter:none;}`,
@@ -364,6 +371,88 @@ window.__ModuleLoader__.load({
     }
 
     // ------------------------------------------------------------------ apply
+
+    // The static base sheet — MD3 motion/shape tokens, the m3ui control styles, the shell
+    // colour cross-fade and the reduced-motion handling — is injected once and never
+    // rewritten: rewriting a stylesheet can restart CSS animations, and applyCss() runs on
+    // every settings change. The per-settings sheet (data-m3-monet) stays dynamic.
+    // Colour-bearing values always fall back to dsw theme tokens; the --m3-* colour
+    // variables are only present when this plugin's scheme override is active.
+    const BASE_CSS = [
+      // MD3 motion + shape tokens
+      'html.m3-monet-on{--m3-font:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;',
+      '--m3-ease-standard:cubic-bezier(0.2,0,0,1);--m3-ease-emphasized:cubic-bezier(0.05,0.7,0.1,1);',
+      '--m3-ease-emphasized-accel:cubic-bezier(0.3,0,0.8,0.15);',
+      '--m3-dur-short:150ms;--m3-dur-short4:200ms;--m3-dur-medium2:250ms;--m3-dur-medium4:400ms;',
+      '--m3-radius-xs:4px;--m3-radius-s:8px;--m3-radius-m:12px;--m3-radius-l:16px;--m3-radius-xl:28px;}',
+      // chips
+      '.m3ui-chip{font-size:12px;padding:4px 12px;border-radius:999px;cursor:pointer;border:1px solid var(--m3-outline-variant,var(--dsw-alias-border-l2));background-color:transparent;color:var(--m3-on-surface-variant,var(--dsw-alias-label-secondary));transition:background-color var(--m3-dur-short4) var(--m3-ease-standard),color var(--m3-dur-short4) var(--m3-ease-standard),border-color var(--m3-dur-short4) var(--m3-ease-standard);}',
+      '.m3ui-chip:hover{background-color:color-mix(in srgb,var(--m3-on-surface,var(--dsw-alias-label-primary)) 8%,transparent);}',
+      '.m3ui-chip:active{background-color:color-mix(in srgb,var(--m3-on-surface,var(--dsw-alias-label-primary)) 12%,transparent);}',
+      '.m3ui-chip.m3ui-on{background-color:var(--m3-secondary-container,var(--dsw-alias-bg-layer-2));border-color:transparent;color:var(--m3-on-surface,var(--dsw-alias-label-primary));}',
+      '.m3ui-chip:focus-visible{outline:2px solid var(--m3-primary,var(--dsw-alias-brand-primary));outline-offset:2px;}',
+      // buttons
+      '.m3ui-btn{font-size:12px;padding:5px 14px;border-radius:999px;cursor:pointer;border:1px solid var(--m3-outline-variant,var(--dsw-alias-border-l2));background-color:transparent;color:var(--m3-on-surface,var(--dsw-alias-label-primary));transition:background-color var(--m3-dur-short4) var(--m3-ease-standard),border-color var(--m3-dur-short4) var(--m3-ease-standard);}',
+      '.m3ui-btn:hover{background-color:color-mix(in srgb,var(--m3-on-surface,var(--dsw-alias-label-primary)) 8%,transparent);}',
+      '.m3ui-btn:active{background-color:color-mix(in srgb,var(--m3-on-surface,var(--dsw-alias-label-primary)) 12%,transparent);}',
+      '.m3ui-btn:focus-visible{outline:2px solid var(--m3-primary,var(--dsw-alias-brand-primary));outline-offset:2px;}',
+      '.m3ui-btn.m3ui-filled{border-color:transparent;background-color:var(--m3-primary,var(--dsw-alias-brand-primary));color:var(--m3-on-primary,var(--dsw-alias-brand-text));}',
+      '.m3ui-btn.m3ui-filled:hover{background-color:color-mix(in srgb,var(--m3-on-primary,var(--dsw-alias-brand-text)) 8%,var(--m3-primary,var(--dsw-alias-brand-primary)));}',
+      '.m3ui-btn.m3ui-filled:active{background-color:color-mix(in srgb,var(--m3-on-primary,var(--dsw-alias-brand-text)) 12%,var(--m3-primary,var(--dsw-alias-brand-primary)));}',
+      // switch (MD3: track grows 36x20 -> 40x22, thumb 14 -> 18 and slides right)
+      '.m3ui-switch{position:relative;width:40px;height:22px;box-sizing:border-box;border-radius:999px;border:2px solid var(--m3-outline,var(--dsw-alias-border-l3));background-color:transparent;padding:0;cursor:pointer;flex-shrink:0;transition:background-color var(--m3-dur-medium2) var(--m3-ease-standard),border-color var(--m3-dur-medium2) var(--m3-ease-standard);}',
+      '.m3ui-switch.m3ui-on{border-color:transparent;background-color:var(--m3-primary,var(--dsw-alias-brand-primary));}',
+      '.m3ui-switch.m3ui-on:hover{background-color:color-mix(in srgb,var(--m3-on-primary,var(--dsw-alias-brand-text)) 10%,var(--m3-primary,var(--dsw-alias-brand-primary)));}',
+      '.m3ui-switch:focus-visible{outline:2px solid var(--m3-primary,var(--dsw-alias-brand-primary));outline-offset:2px;}',
+      '.m3ui-thumb{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background-color:var(--m3-outline,var(--dsw-alias-label-secondary));transition:left var(--m3-dur-medium2) var(--m3-ease-emphasized),top var(--m3-dur-medium2) var(--m3-ease-emphasized),width var(--m3-dur-medium2) var(--m3-ease-emphasized),height var(--m3-dur-medium2) var(--m3-ease-emphasized),background-color var(--m3-dur-medium2) var(--m3-ease-standard),box-shadow var(--m3-dur-short) var(--m3-ease-standard);}',
+      '.m3ui-switch:hover .m3ui-thumb{box-shadow:0 0 0 5px color-mix(in srgb,var(--m3-on-surface,var(--dsw-alias-label-primary)) 8%,transparent);}',
+      '.m3ui-switch.m3ui-on .m3ui-thumb{top:0;left:16px;width:18px;height:18px;background-color:var(--m3-on-primary,var(--dsw-alias-label-primary-inverted));}',
+      '.m3ui-switch.m3ui-on:hover .m3ui-thumb{box-shadow:0 0 0 5px color-mix(in srgb,var(--m3-primary,var(--dsw-alias-brand-primary)) 20%,transparent);}',
+      // slider
+      '.m3ui-slider{-webkit-appearance:none;appearance:none;height:20px;background:transparent;cursor:pointer;}',
+      '.m3ui-slider::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:color-mix(in srgb,var(--m3-primary,var(--dsw-alias-brand-primary)) 25%,var(--m3-outline-variant,var(--dsw-alias-border-l2)));}',
+      '.m3ui-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;margin-top:-5px;width:14px;height:14px;border-radius:50%;background-color:var(--m3-primary,var(--dsw-alias-brand-primary));transition:box-shadow var(--m3-dur-short) var(--m3-ease-standard);}',
+      '.m3ui-slider:hover::-webkit-slider-thumb{box-shadow:0 0 0 6px color-mix(in srgb,var(--m3-primary,var(--dsw-alias-brand-primary)) 12%,transparent);}',
+      '.m3ui-slider:active::-webkit-slider-thumb{box-shadow:0 0 0 8px color-mix(in srgb,var(--m3-primary,var(--dsw-alias-brand-primary)) 12%,transparent);}',
+      '.m3ui-slider:focus-visible{outline:2px solid var(--m3-primary,var(--dsw-alias-brand-primary));outline-offset:2px;}',
+      '.m3ui-slider::-moz-range-track{height:4px;border-radius:2px;background:color-mix(in srgb,var(--m3-primary,var(--dsw-alias-brand-primary)) 25%,var(--m3-outline-variant,var(--dsw-alias-border-l2)));}',
+      '.m3ui-slider::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background-color:var(--m3-primary,var(--dsw-alias-brand-primary));}',
+      // swatches and preset dots
+      '.m3ui-swatch{width:26px;height:26px;border-radius:var(--m3-radius-s,8px);border:1px solid var(--m3-outline-variant,var(--dsw-alias-border-l2));transition:transform var(--m3-dur-short4) var(--m3-ease-emphasized);}',
+      '.m3ui-swatch:hover{transform:scale(1.08);}',
+      '.m3ui-dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--m3-outline-variant,var(--dsw-alias-border-l2));cursor:pointer;padding:0;transition:border-color var(--m3-dur-short4) var(--m3-ease-standard),box-shadow var(--m3-dur-short4) var(--m3-ease-standard),transform var(--m3-dur-short4) var(--m3-ease-emphasized);}',
+      '.m3ui-dot:hover{transform:scale(1.1);}',
+      '.m3ui-dot.m3ui-on{border-color:var(--m3-primary,var(--dsw-alias-brand-primary));box-shadow:0 0 0 2px color-mix(in srgb,var(--m3-primary,var(--dsw-alias-brand-primary)) 35%,transparent);}',
+      // text inputs
+      '.m3ui-input{border-radius:var(--m3-radius-s,8px);border:1px solid var(--m3-outline-variant,var(--dsw-alias-border-l2));background:var(--dsw-alias-bg-layer-1);color:var(--m3-on-surface,var(--dsw-alias-label-primary));transition:border-color var(--m3-dur-short4) var(--m3-ease-standard),box-shadow var(--m3-dur-short4) var(--m3-ease-standard);}',
+      '.m3ui-input:focus{outline:none;border-color:var(--m3-primary,var(--dsw-alias-brand-primary));box-shadow:0 0 0 1px var(--m3-primary,var(--dsw-alias-brand-primary));}',
+      // cards
+      '.m3ui-card{border-radius:var(--m3-radius-l,16px);border:1px solid var(--m3-outline-variant,var(--dsw-alias-border-l1));background:var(--dsw-alias-bg-layer-1);box-shadow:var(--m3-shadow-1,none);overflow:hidden;}',
+      // entrance animations (own elements only — never host chrome)
+      '@keyframes m3ui-row-in{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}',
+      '.m3ui-row-in{animation:m3ui-row-in var(--m3-dur-short4) var(--m3-ease-emphasized);}',
+      '@keyframes m3ui-fade{from{opacity:0;}to{opacity:1;}}',
+      '.m3ui-fade-in{animation:m3ui-fade var(--m3-dur-short4) var(--m3-ease-standard);}',
+      // Shell surfaces cross-fade when the theme colours change, gated on the plugin being
+      // enabled AND motion not disabled. Only background/border/colour transitions — no
+      // transform and no will-change on host chrome, so there are no containing-block
+      // surprises for position:fixed descendants (see the glass note in buildCss).
+      'html.m3-monet-on:not(.m3-motion-off) .BynINW_frame,html.m3-monet-on:not(.m3-motion-off) .BynINW_sidebarCol,html.m3-monet-on:not(.m3-motion-off) ._2H3hWW_root,html.m3-monet-on:not(.m3-motion-off) .BynINW_centerCol{transition:background-color var(--m3-dur-medium2) var(--m3-ease-standard),border-color var(--m3-dur-medium2) var(--m3-ease-standard),color var(--m3-dur-medium2) var(--m3-ease-standard);}',
+      'html.m3-monet-on:not(.m3-motion-off) .BynINW_sidebarCol::before,html.m3-monet-on:not(.m3-motion-off) .BynINW_centerCol::before{transition:background-color var(--m3-dur-medium2) var(--m3-ease-standard);}',
+      // the user can switch motion off entirely
+      'html.m3-motion-off .m3ui-chip,html.m3-motion-off .m3ui-btn,html.m3-motion-off .m3ui-switch,html.m3-motion-off .m3ui-thumb,html.m3-motion-off .m3ui-slider,html.m3-motion-off .m3ui-swatch,html.m3-motion-off .m3ui-dot,html.m3-motion-off .m3ui-input{transition:none!important;}',
+      'html.m3-motion-off .m3ui-slider::-webkit-slider-thumb{transition:none!important;}',
+      'html.m3-motion-off .m3ui-row-in,html.m3-motion-off .m3ui-fade-in{animation:none!important;}',
+      // ... and the OS can, too
+      '@media (prefers-reduced-motion:reduce){.m3ui-chip,.m3ui-btn,.m3ui-switch,.m3ui-thumb,.m3ui-swatch,.m3ui-dot,.m3ui-input{transition:none!important;}html.m3-monet-on .BynINW_frame,html.m3-monet-on .BynINW_sidebarCol,html.m3-monet-on ._2H3hWW_root,html.m3-monet-on .BynINW_centerCol{transition:none!important;}}',
+    ].join('\n');
+    function applyBaseCss() {
+      if (baseStyleEl) return;
+      baseStyleEl = document.createElement('style');
+      baseStyleEl.setAttribute('data-m3-monet-base', '');
+      baseStyleEl.textContent = BASE_CSS;
+      (document.head || document.documentElement).appendChild(baseStyleEl);
+    }
     function applyCss(s) {
       const source = wallpaperSource(s);
       const css = buildCss(s, source);
@@ -399,6 +488,14 @@ window.__ModuleLoader__.load({
           dark: M.translucent(roles.dark.surfaceContainer, sidebarPct),
         };
       overrides['--dsw-specific-sidebar-fill'] = sFill;
+      // MD3 elevation level 1, derived from the scheme's own shadow colour (never a literal
+      // grey), so settings cards keep a subtle MD3-style shadow in both schemes.
+      const rgbOf = (hx) => { const a = M.argbFromHex(hx); return [(a >> 16) & 255, (a >> 8) & 255, a & 255]; };
+      const elevation = (hx) => {
+        const c = rgbOf(hx);
+        return '0 1px 2px rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.30), 0 1px 3px 1px rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.15)';
+      };
+      overrides['--m3-shadow-1'] = { light: elevation(roles.light.shadow), dark: elevation(roles.dark.shadow) };
       const navPct = gl.sidebar.enabled ? Math.max(60, gl.sidebar.opacity) : 100;
       overrides['--dsw-specific-sidebar-nav-item-active'] = navPct >= 100
         ? { light: roles.light.secondaryContainer, dark: roles.dark.secondaryContainer }
@@ -435,6 +532,7 @@ window.__ModuleLoader__.load({
       setRootFlag('m3-glass-sidebar', s.enabled && !!s.glass.sidebar.enabled);
       setRootFlag('m3-glass-content', s.enabled && !!s.glass.content.enabled);
       setRootFlag('m3-wallpaper', s.enabled && s.wallpaper.enabled);
+      setRootFlag('m3-motion-off', s.enabled && s.motion === false);
       if (!s.enabled) {
         // release the theme override so the stock theme is restored
         if (typeof disposeOverrides === 'function') { try { disposeOverrides(); } catch (e) { /* noop */ } }
@@ -442,6 +540,7 @@ window.__ModuleLoader__.load({
         if (styleEl) styleEl.textContent = '';
         return;
       }
+      applyBaseCss();
       applyCss(s);
       applyThemeTokens(s);
     }
@@ -562,31 +661,26 @@ window.__ModuleLoader__.load({
         desc ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginTop: 1 } }, desc) : null);
 
     function Row({ label, desc, children }) {
-      return h('div', { style: ROW },
+      return h('div', { className: 'm3ui-row-in', style: ROW },
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' } },
           rowText(label, desc),
           children ? h('div', { style: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 } }, children) : null));
     }
+    // Controls carry no inline colours: the m3ui-* classes in the static base stylesheet own
+    // MD3 shape, state layers and motion, with token fallbacks for the disabled state.
     function Toggle({ value, onChange, label }) {
       return h('button', {
         role: 'switch', 'aria-checked': !!value, 'aria-label': label || '',
+        className: 'm3ui-switch' + (value ? ' m3ui-on' : ''),
         onClick: () => onChange(!value),
-        style: {
-          width: 36, height: 20, borderRadius: 999, padding: 0, border: 'none', cursor: 'pointer',
-          background: value ? 'var(--dsw-alias-brand-primary)' : 'var(--dsw-alias-border-l3)',
-          transition: 'background 0.18s ease', position: 'relative', flexShrink: 0,
-        },
-      }, h('span', { style: {
-        position: 'absolute', top: 2, left: value ? 18 : 2, width: 16, height: 16, borderRadius: '50%',
-        background: 'var(--dsw-alias-label-primary-inverted)', transition: 'left 0.18s ease',
-      }}));
+      }, h('span', { className: 'm3ui-thumb' }));
     }
     function Slider({ value, min, max, step = 1, onChange, suffix }) {
       return h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 190 } },
         h('input', {
-          type: 'range', min, max, step, value,
+          type: 'range', min, max, step, value, className: 'm3ui-slider',
           onChange: (e) => onChange(Number(e.target.value)),
-          style: { flex: 1, accentColor: 'var(--dsw-alias-brand-primary)', height: 3, minWidth: 120 },
+          style: { flex: 1, minWidth: 120 },
         }),
         h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', width: 40, textAlign: 'right' } },
           value + (suffix || '')));
@@ -594,18 +688,15 @@ window.__ModuleLoader__.load({
     function Segment({ options, value, onChange }) {
       return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
         options.map((o) => h('button', {
-          key: o.value, onClick: () => onChange(o.value),
-          style: {
-            fontSize: 12, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', border: '1px solid var(--dsw-alias-border-l2)',
-            color: value === o.value ? 'var(--dsw-alias-label-primary-inverted)' : 'var(--dsw-alias-label-secondary)',
-            background: value === o.value ? 'var(--dsw-alias-brand-primary)' : 'transparent',
-          },
+          key: o.value, type: 'button',
+          className: 'm3ui-chip' + (value === o.value ? ' m3ui-on' : ''),
+          onClick: () => onChange(o.value),
         }, o.label)));
     }
     function Swatch({ color, title }) {
       return h('div', {
-        title,
-        style: { width: 26, height: 26, borderRadius: 8, background: color, border: '1px solid var(--dsw-alias-border-l2)', flexShrink: 0 },
+        title, className: 'm3ui-swatch',
+        style: { background: color, flexShrink: 0 },
       });
     }
     function Section({ title, children }) {
@@ -614,11 +705,7 @@ window.__ModuleLoader__.load({
         children);
     }
     function Card({ children, style }) {
-      return h('div', { style: {
-        margin: '10px 14px', borderRadius: 12, overflow: 'hidden',
-        border: '1px solid var(--dsw-alias-border-l1)',
-        background: 'var(--dsw-alias-bg-layer-1)', ...(style || {}),
-      } }, children);
+      return h('div', { className: 'm3ui-card', style: { margin: '10px 14px', ...(style || {}) } }, children);
     }
 
     // -------------------------------------------------------- settings view
@@ -677,16 +764,17 @@ window.__ModuleLoader__.load({
                 style: { width: 30, height: 30, padding: 0, border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 8, background: 'transparent', cursor: 'pointer' },
               }),
               h('input', {
-                value: p.color, spellCheck: false,
+                value: p.color, spellCheck: false, className: 'm3ui-input',
                 onChange: (e) => update({ ...s, palette: { ...p, color: e.target.value } }),
-                style: { width: 90, fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)' },
+                style: { width: 90, fontSize: 12, padding: '4px 8px' },
               })),
             p.source === 'preset' && h(Row, { label: t('srcPreset') },
               h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: 220 } },
                 PRESETS.map((pr, i) => h('button', {
-                  key: pr.name, title: pr.name,
+                  key: pr.name, title: pr.name, type: 'button',
+                  className: 'm3ui-dot' + (i === p.preset ? ' m3ui-on' : ''),
                   onClick: () => update({ ...s, palette: { ...p, preset: i } }),
-                  style: { width: 22, height: 22, borderRadius: 7, border: '2px solid ' + (i === p.preset ? 'var(--dsw-alias-brand-primary)' : 'var(--dsw-alias-border-l2)'), background: pr.color, cursor: 'pointer', padding: 0 },
+                  style: { background: pr.color },
                 })))),
             h(Row, { label: t('style') },
               h(Segment, { options: STYLE_OPTIONS, value: p.style, onChange: (v) => update({ ...s, palette: { ...p, style: v } }) })),
@@ -706,6 +794,9 @@ window.__ModuleLoader__.load({
               h(Toggle, { value: wp.enabled, onChange: (v) => update({ ...s, wallpaper: { ...wp, enabled: v } }) })),
             wp.enabled && h(Row, { label: t('wpPreview') },
               h('div', {
+                // re-mount (and so re-run the fade-in) whenever the image changes
+                key: previewBg || (wp.kind === 'gradient' ? 'gradient' : 'none'),
+                className: 'm3ui-fade-in',
                 style: {
                   width: 130, height: 60, borderRadius: 8, overflow: 'hidden', flexShrink: 0,
                   backgroundImage: previewBg ? `url(${previewBg})` : (wp.kind === 'gradient'
@@ -728,16 +819,16 @@ window.__ModuleLoader__.load({
                   } catch (err) { console.warn('[dsh-m3-monet] upload failed', err); }
                   e.target.value = '';
                 } }),
-              h('button', { onClick: () => fileRef.current && fileRef.current.click(), style: btnStyle('ghost') }, t('wpUpload'))),
+              h('button', { onClick: () => fileRef.current && fileRef.current.click(), className: btnStyle('ghost') }, t('wpUpload'))),
             wp.enabled && wp.kind === 'url' && h(Row, { label: t('wpUrl') },
               h('input', {
                 placeholder: t('wpUrlPlaceholder'), value: wp.kind === 'url' ? wp.value : '',
-                spellCheck: false,
+                spellCheck: false, className: 'm3ui-input',
                 onChange: (e) => update({ ...s, wallpaper: { ...wp, value: e.target.value } }),
-                style: { width: 170, fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)' },
+                style: { width: 170, fontSize: 12, padding: '4px 8px' },
               })),
             wp.enabled && (wp.kind === 'file' || wp.kind === 'url') && h(Row, { label: '' },
-              h('button', { onClick: () => update({ ...s, wallpaper: { ...wp, kind: 'none', value: '' } }), style: btnStyle('ghost') }, t('wpClear'))),
+              h('button', { onClick: () => update({ ...s, wallpaper: { ...wp, kind: 'none', value: '' } }), className: btnStyle('ghost') }, t('wpClear'))),
             wp.enabled && h(Row, { label: t('wpDim') },
               h(Slider, { value: s.dim, min: 0, max: 60, suffix: '%', onChange: (v) => update({ ...s, dim: v }) })),
             wp.enabled && h(Row, { label: t('surfaceOpacity'), desc: t('surfaceOpacityDesc') },
@@ -766,20 +857,18 @@ window.__ModuleLoader__.load({
           h(Card, {},
             h(Row, { label: t('master'), desc: t('masterDesc') },
               h(Toggle, { value: s.enabled, onChange: (v) => update({ ...s, enabled: v }) })),
+            h(Row, { label: t('motion'), desc: t('motionDesc') },
+              h(Toggle, { value: s.motion !== false, onChange: (v) => update({ ...s, motion: v }) })),
             h(Row, { label: '' },
-              h('button', { onClick: () => update(JSON.parse(JSON.stringify(DEFAULT_SETTINGS))), style: btnStyle('ghost') }, t('reset'))))),
+              h('button', { onClick: () => update(JSON.parse(JSON.stringify(DEFAULT_SETTINGS))), className: btnStyle('ghost') }, t('reset'))))),
 
         h('div', { style: { padding: '8px 14px 18px', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', lineHeight: '18px' } }, t('chromeHint')),
       );
     }
 
+    // returns a class name; the visuals live in the static m3ui stylesheet
     function btnStyle(kind) {
-      return {
-        fontSize: 12, padding: '4px 12px', borderRadius: 999, cursor: 'pointer',
-        color: kind === 'primary' ? 'var(--dsw-alias-brand-text)' : 'var(--dsw-alias-label-secondary)',
-        background: kind === 'primary' ? 'var(--dsw-alias-brand-primary)' : 'transparent',
-        border: '1px solid var(--dsw-alias-border-l2)',
-      };
+      return kind === 'primary' ? 'm3ui-btn m3ui-filled' : 'm3ui-btn';
     }
 
     // -------------------------------------------------------------- entries
@@ -835,8 +924,10 @@ window.__ModuleLoader__.load({
           if (typeof disposeOverrides === 'function') { try { disposeOverrides(); } catch (e) { /* noop */ } disposeOverrides = null; }
           if (styleEl && styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
           styleEl = null;
+          if (baseStyleEl && baseStyleEl.parentNode) baseStyleEl.parentNode.removeChild(baseStyleEl);
+          baseStyleEl = null;
           const root = document.documentElement;
-          root.classList.remove('m3-monet', 'm3-monet-on', 'm3-wallpaper', 'm3-glass', 'm3-glass-sidebar', 'm3-glass-content');
+          root.classList.remove('m3-monet', 'm3-monet-on', 'm3-wallpaper', 'm3-glass', 'm3-glass-sidebar', 'm3-glass-content', 'm3-motion-off');
         };
       },
     };
